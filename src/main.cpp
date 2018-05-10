@@ -92,14 +92,41 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+
+
+          // Calculate given  waypoint map coordinates to vehicles coordinates
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
+          for(int i = 0 ; i < ptsx.size(); i++)
+          {
+            next_x_vals.push_back( (cos(-psi) * (ptsx.at(i) - px)) - (sin(-psi) * (ptsy.at(i) - py)));
+            next_y_vals.push_back( (sin(-psi) * (ptsx.at(i) - px)) + (cos(-psi) * (ptsy.at(i) - py)));
+          }
+
+          // Fit the polynomial to the waypoints. Outcoming are the coefficients.
+          Eigen::VectorXd ptsx_matrix(ptsx.size());
+          Eigen::VectorXd ptsy_matrix(ptsy.size());
+          ptsx_matrix << next_x_vals[0], next_x_vals[1], next_x_vals[2], next_x_vals[3], next_x_vals[4], next_x_vals[5];
+          ptsy_matrix << next_y_vals[0], next_y_vals[1], next_y_vals[2], next_y_vals[3], next_y_vals[4], next_y_vals[5];
+          auto coeffs = polyfit(ptsx_matrix, ptsy_matrix, 3);
+
+          // Prepare initial state. Since the waypoints are transformed to the vehicles coordiante, the current values for x,y and psi is zero.
+          double current_x = 0;
+          double current_y = 0;
+          double current_psi = 0;
+          // The initial cross track error is calculated by evaluating at polynomial at waypoints polynom f(current_x) and subtracting current_y.
+          double cte = polyeval(coeffs, current_x) - current_y;
+          // Due to the sign starting at 0, the orientation error is -f'(current_x).
+          double epsi = - atan(coeffs[1]);
+          Eigen::VectorXd state(6);
+          state << current_x, current_y, current_psi, v, cte, epsi;
+
+          // Call the mpc.Solve with current, initial state and the waypoint polynom coeffs
+          auto vars = mpc.Solve(state, coeffs);
+
+          // Get steering angle and throttle using MPC. Both are in between [-1, 1].
+          double steer_value = -(vars.at(0));
+          double throttle_value = (vars.at(1));
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -107,19 +134,21 @@ int main() {
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
+
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
+
+          for(int i = 1 ; i < (vars.size()/2); i++)
+          {
+            mpc_x_vals.push_back( vars.at(2*i) );
+            mpc_y_vals.push_back( vars.at(2*i+1) );
+          }
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
-
-          //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
