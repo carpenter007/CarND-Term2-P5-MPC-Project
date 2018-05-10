@@ -43,14 +43,15 @@ const double Weight_v = 1.0;
 const double Weight_lowActuatorVals = 6.0;
 const double Weight_lowAcutatorChanges = 300.0;
 
-
 class FG_eval {
  public:
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
-  FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
+  FG_eval(Eigen::VectorXd coeffs) {
+    this->coeffs = coeffs;
+  }
 
-  typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
+  typedef CPPAD_TESTVECTOR(AD<double>)ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
     // `fg` is a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
 
@@ -69,8 +70,8 @@ class FG_eval {
     // 2. The actuators should be used as less as possible
     for(int t = 0; t < N-1; t++)
     {
-     fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[delta_start + t],2);
-     fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[a_start + t],2);
+      fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[delta_start + t],2);
+      fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[a_start + t],2);
     }
     // 3. The changes of the actuators should be as less as possible
     for(int t = 0; t < N-2; t++)
@@ -128,10 +129,10 @@ class FG_eval {
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
       // cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
       fg[1 + cte_start + t] =
-          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
       // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
       fg[1 + epsi_start + t] =
-          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+      epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
     }
   }
 };
@@ -139,13 +140,15 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC() {}
-MPC::~MPC() {}
+MPC::MPC() {
+}
+MPC::~MPC() {
+}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
   size_t i;
-  typedef CPPAD_TESTVECTOR(double) Dvector;
+  typedef CPPAD_TESTVECTOR(double)Dvector;
 
   double x = state[0];
   double y = state[1];
@@ -247,9 +250,10 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   CppAD::ipopt::solve_result<Dvector> solution;
 
   // solve the problem
-  CppAD::ipopt::solve<Dvector, FG_eval>(
-      options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
-      constraints_upperbound, fg_eval, solution);
+  CppAD::ipopt::solve<Dvector, FG_eval>(options, vars, vars_lowerbound,
+                                        vars_upperbound, constraints_lowerbound,
+                                        constraints_upperbound, fg_eval,
+                                        solution);
 
   // Check some of the solution values
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
@@ -263,17 +267,17 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
-  return {  solution.x[delta_start],   solution.x[a_start],
-            solution.x[x_start + 1],   solution.x[y_start + 1],
-            solution.x[x_start + 2],   solution.x[y_start + 2],
-            solution.x[x_start + 3],   solution.x[y_start + 3],
-            solution.x[x_start + 4],   solution.x[y_start + 4],
-            solution.x[x_start + 5],   solution.x[y_start + 5],
-            solution.x[x_start + 6],   solution.x[y_start + 6],
-            solution.x[x_start + 7],   solution.x[y_start + 7],
-            solution.x[x_start + 8],   solution.x[y_start + 8],
-            solution.x[x_start + 9],   solution.x[y_start + 9],
-            //solution.x[psi_start + 1], solution.x[v_start + 1],
-            //solution.x[cte_start + 1], solution.x[epsi_start + 1],
-            };
+  return {solution.x[delta_start], solution.x[a_start],
+    solution.x[x_start + 1], solution.x[y_start + 1],
+    solution.x[x_start + 2], solution.x[y_start + 2],
+    solution.x[x_start + 3], solution.x[y_start + 3],
+    solution.x[x_start + 4], solution.x[y_start + 4],
+    solution.x[x_start + 5], solution.x[y_start + 5],
+    solution.x[x_start + 6], solution.x[y_start + 6],
+    solution.x[x_start + 7], solution.x[y_start + 7],
+    solution.x[x_start + 8], solution.x[y_start + 8],
+    solution.x[x_start + 9], solution.x[y_start + 9],
+    //solution.x[psi_start + 1], solution.x[v_start + 1],
+    //solution.x[cte_start + 1], solution.x[epsi_start + 1],
+  };
 }
