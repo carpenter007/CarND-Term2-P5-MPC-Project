@@ -16,6 +16,7 @@ using json = nlohmann::json;
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
+double mphToMps = 0.44704; // Miles per hour to meter per second
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -91,6 +92,20 @@ int main() {
             double py = j[1]["y"];
             double psi = j[1]["psi"];
             double v = j[1]["speed"];
+            double steer_value = j[1]["steering_angle"];
+            double throttle_value = j[1]["throttle"];
+
+            // Add latency
+            // predict state in 100ms
+            // Running the simulation using the vehicle model starting from the current state for the duration of the latency
+            double latency = 0.100;
+
+            // apply the kinematic model update equations
+            px = px + (v * mphToMps) * cos(psi) * latency;
+            py = py + (v * mphToMps) * sin(psi) * latency;
+            psi = psi - (v * mphToMps) / 2.67 * steer_value * latency;
+            // no model found for mathematical dependency between throttle value and acceleration. Therefore the latency of v is included here
+
 
             // Calculate given  waypoint map coordinates to vehicles coordinates
             vector<double> next_x_vals;
@@ -108,10 +123,13 @@ int main() {
             ptsy_matrix << next_y_vals[0], next_y_vals[1], next_y_vals[2], next_y_vals[3], next_y_vals[4], next_y_vals[5];
             auto coeffs = polyfit(ptsx_matrix, ptsy_matrix, 3);
 
+
+
             // Prepare initial state. Since the waypoints are transformed to the vehicles coordiante, the current values for x,y and psi is zero.
             double current_x = 0;
             double current_y = 0;
             double current_psi = 0;
+
             // The initial cross track error is calculated by evaluating at polynomial at waypoints polynom f(current_x) and subtracting current_y.
             double cte = polyeval(coeffs, current_x) - current_y;
             // Due to the sign starting at 0, the orientation error is -f'(current_x).
@@ -123,8 +141,8 @@ int main() {
             auto vars = mpc.Solve(state, coeffs);
 
             // Get steering angle and throttle using MPC. Both are in between [-1, 1].
-            double steer_value = -(vars.at(0));
-            double throttle_value = (vars.at(1));
+            steer_value = -(vars.at(0));
+            throttle_value = (vars.at(1));
 
             json msgJson;
             // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
