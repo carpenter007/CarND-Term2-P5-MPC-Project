@@ -98,7 +98,7 @@ int main() {
             // Add latency
             // predict state in 100ms
             // Running the simulation using the vehicle model starting from the current state for the duration of the latency
-            double latency = 0.100;
+            double latency = 0.135;
 
             // apply the kinematic model update equations
             px = px + (v * mphToMps) * cos(psi) * latency;
