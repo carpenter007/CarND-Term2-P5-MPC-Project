@@ -7,11 +7,11 @@ using CppAD::AD;
 
 // Set the timestep length and duration
 size_t N = 10;
-double dt = 0.1;
+double dt = 0.05;
 
 // NOTE: feel free to play around with this
 // or do something completely different
-double ref_v = 35;
+double ref_v = 80;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -36,11 +36,11 @@ size_t a_start = delta_start + N - 1;
 //
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
-const double Weight_cte = 2.0;
+const double Weight_cte = 3.0;
 const double Weight_errorPsi = 1.0;
 const double Weight_v = 1.0;
 
-const double Weight_lowActuatorVals = 6.0;
+const double Weight_lowActuatorVals = 5.0;
 const double Weight_lowAcutatorChanges = 300.0;
 
 class FG_eval {
@@ -70,7 +70,7 @@ class FG_eval {
     // 2. The actuators should be used as less as possible
     for(int t = 0; t < N-1; t++)
     {
-      fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[delta_start + t],2);
+      fg[0] += /*Weight_lowActuatorVals **/ CppAD::pow(vars[delta_start + t],2);
       fg[0] += Weight_lowActuatorVals * CppAD::pow(vars[a_start + t],2);
     }
     // 3. The changes of the actuators should be as less as possible
@@ -277,6 +277,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     solution.x[x_start + 7], solution.x[y_start + 7],
     solution.x[x_start + 8], solution.x[y_start + 8],
     solution.x[x_start + 9], solution.x[y_start + 9],
+    //solution.x[x_start + 10], solution.x[y_start + 10],
+    //solution.x[x_start + 11], solution.x[y_start + 11],
     //solution.x[psi_start + 1], solution.x[v_start + 1],
     //solution.x[cte_start + 1], solution.x[epsi_start + 1],
   };
