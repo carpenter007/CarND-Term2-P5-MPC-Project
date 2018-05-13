@@ -1,7 +1,88 @@
 # CarND-Controls-MPC
-Self-Driving Car Engineer Nanodegree Program
 
----
+This is project number 5 of the Self-Driving Car Engineer Nanodegree Program in term 2.
+
+In this project I've implemented Model Predictive Control to drive the car from the simulator around the track. While receiving track waypoints, cars position / angle, I calculate the steering angle and throttle value using MPC! Additionally, there's a 100 millisecond latency between actuations commands on top of the connection latency.
+
+
+## The Model
+
+MPC uses an optimizer to find the actuator values (steering angle + throttle value) that minimizes a given cost function for the current state of the vehicle.
+
+The model includes the vehicle model and constraints such as actuator limitations:
+
+### Constraints
+The actuators can control the steering angle and the throttle value.
+The steer angle can be between -25° and 25°. Since this value is reported as -1.0 and 1.0 to the simulators, [-1.0, 1.0] are the contraints.
+The throttle value also can be between -1.0 and 1.0. To accelerate fully, the value would be set to 1.0.
+
+### Vehicle model
+The vehicles model is defined by following equations which are implemented in the MPC.cpp class from line 121 - 135.
+
+``` c++
+x[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+y[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+psi[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+v[t+1] = v[t] + a[t] * dt
+cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+```
+
+The cost function references state costs. This includes cross track errors and direction errors, as well as penaltings to high actuator values or high changes of actuator values.
+ 
+The cost function is optimized by tuning some weight values for the several parameters.
+
+``` C++
+const double Weight_cte = 3.0;
+const double Weight_errorPsi = 1.0;
+const double Weight_v = 1.0;
+const double Weight_lowActuatorVals = 5.0;
+const double Weight_lowAcutatorChanges = 300.0;
+```
+
+The solver I used to minimize the cost function is called IPOPT.
+
+
+## Timestep Length and Elapsed Duration (N & dt)
+
+The MPC is able to calculate control values for a number of timesteps beforehand. N describes the number of steps for which the actuator values are calculated. dt describes the time between two steps. E.g. if N = 10 and dt = 1sec, the actuator prediction for the next 10 seconds would be calculated in one MPC loop. N * dt results in the duration of the trajectory. After each loop, (only) the first value set of the calculated actuator values is applied to the vehicle.
+
+The choosen values for N and dt are
+``` c++
+size_t N = 10;
+double dt = 0.05;
+```
+
+This means, the solver tries the find a minimized input control vector for a trajectory for the next 0.5 seconds of driving.
+
+This fits quite good to a velocity of ~70mph. Choosing a longer duration may does not fit to a 3 dimensional polynom for the trajectory. 
+
+There is also a trade-off between the solver calculation time and the resolution defined by the number of trajectory steps 'N'. If N is to high, the solver sometimes does not find a good cost minimized solution at a given time.
+
+An improvement could be, to choose the timestep dt depending on the current velocity.
+
+
+## Polynomial Fitting and MPC Preprocessing
+
+The simulator passes the next 6 waypoints of the track, depending on the cars current position. A polynomial is fitted to waypoints. Before calculating the coefficents for a 3 dimensional polynomial, the waypoints are transformed from map coordinates to vehicle coordinates (current vehicle coordinate is [x,y,psi] = {0,0,0} ). Both, the current state (including x, y, psi, CTE and psi error) and the coefficients of the waypoint polynominal is processed to the MPC solver.
+
+For each loop cycle:
+The initial cross track error is calculated by evaluating the y value at the waypoints polynominal at the current x position (vehicles view) and subtracting the current y position.
+Due to starting with psi = 0, the initial error of psi is  -f'(current_x):
+```c++
+double epsi = - atan(coeffs[1]);
+```
+
+## Model Predictive Control with Latency
+
+Setting the actuator values has a latency of 100 millisecond (+ calculation time) before it is applied to the vehicle in the simulator. This latency has to be handled. There are different opportunities to do this.
+
+In the current solution, the application runs the simulation using the vehicle model starting from the current state for the duration of the latency. Applying the kinematic model update equations to the current state given by the simulator, and the latency of 100ms, allows to predict the vehicles state in 100ms. This predicted state is used as the initial state for the MPC solver.
+
+The implementation for this can be found in the main.cpp lines 101 to 106.
+
+Another solution would be, to introduce the latency into the MPC. This could be done by setting the model constraints in that way, that the initial state shall be not changed at all steps within the latency.
+
 
 ## Dependencies
 
@@ -38,71 +119,6 @@ Self-Driving Car Engineer Nanodegree Program
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
 
-## Tips
-
-1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
-is the vehicle starting offset of a straight line (reference). If the MPC implementation is correct, after some number of timesteps
-(not too many) it should find and track the reference line.
-2. The `lake_track_waypoints.csv` file has the waypoints of the lake track. You could use this to fit polynomials and points and see of how well your model tracks curve. NOTE: This file might be not completely in sync with the simulator so your solution should NOT depend on it.
-3. For visualization this C++ [matplotlib wrapper](https://github.com/lava/matplotlib-cpp) could be helpful.)
-4.  Tips for setting up your environment are available [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
-5. **VM Latency:** Some students have reported differences in behavior using VM's ostensibly a result of latency.  Please let us know if issues arise as a result of a VM environment.
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
 ## Code Style
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+Code Style sticks to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
